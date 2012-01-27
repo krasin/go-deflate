@@ -28,37 +28,23 @@ DIRS=\
 	container/ring\
 	crypto\
 	crypto/aes\
-	crypto/blowfish\
-	crypto/bcrypt\
-	crypto/cast5\
 	crypto/cipher\
 	crypto/des\
 	crypto/dsa\
 	crypto/ecdsa\
 	crypto/elliptic\
 	crypto/hmac\
-	crypto/md4\
 	crypto/md5\
-	crypto/ocsp\
-	crypto/openpgp\
-	crypto/openpgp/armor\
-	crypto/openpgp/elgamal\
-	crypto/openpgp/errors\
-	crypto/openpgp/packet\
-	crypto/openpgp/s2k\
 	crypto/rand\
 	crypto/rc4\
-	crypto/ripemd160\
 	crypto/rsa\
 	crypto/sha1\
 	crypto/sha256\
 	crypto/sha512\
 	crypto/subtle\
 	crypto/tls\
-	crypto/twofish\
 	crypto/x509\
 	crypto/x509/pkix\
-	crypto/xtea\
 	database/sql\
 	database/sql/driver\
 	debug/dwarf\
@@ -72,7 +58,6 @@ DIRS=\
 	encoding/base64\
 	encoding/binary\
 	encoding/csv\
-	encoding/git85\
 	encoding/gob\
 	encoding/hex\
 	encoding/json\
@@ -82,9 +67,8 @@ DIRS=\
 	exp/ebnf\
 	exp/ebnflint\
 	exp/gotype\
+	exp/html\
 	exp/norm\
-	exp/spdy\
-	exp/ssh\
 	exp/terminal\
 	exp/types\
 	expvar\
@@ -124,7 +108,6 @@ DIRS=\
 	mime\
 	mime/multipart\
 	net\
-	net/dict\
 	net/http\
 	net/http/cgi\
 	net/http/fcgi\
@@ -144,7 +127,6 @@ DIRS=\
 	os/exec\
 	os/signal\
 	os/user\
-	patch\
 	path\
 	path/filepath\
 	reflect\
@@ -172,7 +154,6 @@ DIRS=\
 	unicode\
 	unicode/utf16\
 	unicode/utf8\
-	websocket\
 	../cmd/cgo\
 	../cmd/godoc\
 	../cmd/gofix\
@@ -181,7 +162,6 @@ DIRS=\
 	../cmd/gotest\
 	../cmd/govet\
 	../cmd/goyacc\
-	../cmd/hgpatch\
 
 ifeq ($(GOOS),linux)
 DIRS+=\
@@ -205,7 +185,6 @@ NOTEST+=\
 	hash\
 	image/bmp\
 	image/gif\
-	net/dict\
 	net/http/pprof\
 	net/http/httptest\
 	runtime/cgo\
@@ -216,7 +195,6 @@ NOTEST+=\
 	../cmd/godoc\
 	../cmd/gotest\
 	../cmd/goyacc\
-	../cmd/hgpatch\
 
 NOBENCH+=\
 

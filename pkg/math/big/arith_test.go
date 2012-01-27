@@ -334,6 +334,21 @@ func TestMulAddWWW(t *testing.T) {
 	}
 }
 
+func testWordBitLen(t *testing.T, fname string, f func(Word) int) {
+	for i := 0; i <= _W; i++ {
+		x := Word(1) << uint(i-1) // i == 0 => x == 0
+		n := f(x)
+		if n != i {
+			t.Errorf("got %d; want %d for %s(%#x)", n, i, fname, x)
+		}
+	}
+}
+
+func TestWordBitLen(t *testing.T) {
+	testWordBitLen(t, "bitLen", bitLen)
+	testWordBitLen(t, "bitLen_g", bitLen_g)
+}
+
 // runs b.N iterations of bitLen called on a Word containing (1 << nbits)-1.
 func benchmarkBitLenN(b *testing.B, nbits uint) {
 	testword := Word((uint64(1) << nbits) - 1)

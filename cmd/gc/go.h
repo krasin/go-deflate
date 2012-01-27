@@ -57,6 +57,10 @@ enum
 	AINTER,
 	ANILINTER,
 	ASLICE,
+	AFLOAT32,
+	AFLOAT64,
+	ACPLX64,
+	ACPLX128,
 
 	BADWIDTH	= -1000000000,
 };
@@ -1089,6 +1093,11 @@ void	ieeedtod(uint64 *ieee, double native);
 Sym*	stringsym(char*, int);
 
 /*
+ *	order.c
+ */
+void	order(Node *fn);
+
+/*
  *	range.c
  */
 void	typecheckrange(Node *n);
@@ -1124,6 +1133,7 @@ int	stataddr(Node *nam, Node *n);
  */
 Node*	adddot(Node *n);
 int	adddot1(Sym *s, Type *t, int d, Type **save, int ignorecase);
+void	addinit(Node**, NodeList*);
 Type*	aindex(Node *b, Type *t);
 int	algtype(Type *t);
 int	algtype1(Type *t, Type **bad);
@@ -1135,6 +1145,7 @@ int	brcom(int a);
 int	brrev(int a);
 NodeList*	concat(NodeList *a, NodeList *b);
 int	convertop(Type *src, Type *dst, char **why);
+Node*	copyexpr(Node*, Type*, NodeList**);
 int	count(NodeList *l);
 int	cplxsubtype(int et);
 int	eqtype(Type *t1, Type *t2);
