@@ -444,16 +444,19 @@ Loop:
 			oldIndex := d.index
 			d.index += prevLength - 1
 
-			for i := oldIndex + 1; i < d.index; i++ {
-				if i < d.maxInsertIndex {
-					d.hash0 = (d.hash0<<8 + int(d.window[i+2])) & 0xFFFFFF
-					d.hash = getHash(d.hash0, 0) & hashMask
-					// Get previous value with the same hash.
-					// Our chain should point to the previous value.
-					d.hashPrev[i&windowMask] = d.hashHead[d.hash]
-					// Set the head of the hash chain to us.
-					d.hashHead[d.hash] = i + d.hashOffset
-				}
+			toIndex := d.index
+			if toIndex > d.maxInsertIndex {
+				toIndex = d.maxInsertIndex
+			}
+
+			for i := oldIndex + 1; i < toIndex; i++ {
+				d.hash0 = (d.hash0<<8 + int(d.window[i+2])) & 0xFFFFFF
+				d.hash = getHash(d.hash0, 0) & hashMask
+				// Get previous value with the same hash.
+				// Our chain should point to the previous value.
+				d.hashPrev[i&windowMask] = d.hashHead[d.hash]
+				// Set the head of the hash chain to us.
+				d.hashHead[d.hash] = i + d.hashOffset
 			}
 			d.byteAvailable = false
 			d.length = minMatchLength - 1
