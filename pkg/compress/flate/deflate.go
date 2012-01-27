@@ -426,58 +426,37 @@ Loop:
 			minIndex = 0
 		}
 
-		if d.chainHead-d.hashOffset >= minIndex &&
-			(d.fastSkipHashing != skipNever && lookahead > minMatchLength-1 ||
-				d.fastSkipHashing == skipNever && lookahead > prevLength && prevLength < d.lazy) {
+		if d.chainHead-d.hashOffset >= minIndex && lookahead > prevLength && prevLength < d.lazy {
 			if newLength, newOffset, ok := d.findMatch(d.index, d.chainHead-d.hashOffset, minMatchLength-1, lookahead); ok {
 				d.length = newLength
 				d.offset = newOffset
 			}
 		}
-		if d.fastSkipHashing != skipNever && d.length >= minMatchLength ||
-			d.fastSkipHashing == skipNever && prevLength >= minMatchLength && d.length <= prevLength {
+		if prevLength >= minMatchLength && d.length <= prevLength {
 			// There was a match at the previous step, and the current match is
 			// not better. Output the previous match.
-			if d.fastSkipHashing != skipNever {
-				d.tokens = append(d.tokens, matchToken(uint32(d.length-minMatchLength), uint32(d.offset-minOffsetSize)))
-			} else {
-				d.tokens = append(d.tokens, matchToken(uint32(prevLength-minMatchLength), uint32(prevOffset-minOffsetSize)))
-			}
+			d.tokens = append(d.tokens, matchToken(uint32(prevLength-minMatchLength), uint32(prevOffset-minOffsetSize)))
+
 			// Insert in the hash table all strings up to the end of the match.
 			// index and index-1 are already inserted. If there is not enough
 			// lookahead, the last two strings are not inserted into the hash
 			// table.
-			if d.length <= d.fastSkipHashing {
-				var newIndex int
-				if d.fastSkipHashing != skipNever {
-					newIndex = d.index + d.length
-				} else {
-					newIndex = d.index + prevLength - 1
-				}
-				for d.index++; d.index < newIndex; d.index++ {
-					if d.index < d.maxInsertIndex {
-						d.hash0 = (d.hash0<<8 + int(d.window[d.index+2])) & 0xFFFFFF
-						d.hash = getHash(d.hash0, 0) & hashMask
-						// Get previous value with the same hash.
-						// Our chain should point to the previous value.
-						d.hashPrev[d.index&windowMask] = d.hashHead[d.hash]
-						// Set the head of the hash chain to us.
-						d.hashHead[d.hash] = d.index + d.hashOffset
-					}
-				}
-				if d.fastSkipHashing == skipNever {
-					d.byteAvailable = false
-					d.length = minMatchLength - 1
-				}
-			} else {
-				// For matches this long, we don't bother inserting each individual
-				// item into the table.
-				d.index += d.length
+			newIndex := d.index + prevLength - 1
+
+			for d.index++; d.index < newIndex; d.index++ {
 				if d.index < d.maxInsertIndex {
-					d.hash0 = (int(d.window[d.index])<<8 + int(d.window[d.index+1]))
+					d.hash0 = (d.hash0<<8 + int(d.window[d.index+2])) & 0xFFFFFF
 					d.hash = getHash(d.hash0, 0) & hashMask
+					// Get previous value with the same hash.
+					// Our chain should point to the previous value.
+					d.hashPrev[d.index&windowMask] = d.hashHead[d.hash]
+					// Set the head of the hash chain to us.
+					d.hashHead[d.hash] = d.index + d.hashOffset
 				}
 			}
+			d.byteAvailable = false
+			d.length = minMatchLength - 1
+
 			if len(d.tokens) == maxFlateBlockTokens {
 				// The block includes the current character
 				if d.err = d.writeBlock(d.tokens, d.index, false); d.err != nil {
@@ -486,11 +465,9 @@ Loop:
 				d.tokens = d.tokens[:0]
 			}
 		} else {
-			if d.fastSkipHashing != skipNever || d.byteAvailable {
+			if d.byteAvailable {
 				i := d.index - 1
-				if d.fastSkipHashing != skipNever {
-					i = d.index
-				}
+
 				d.tokens = append(d.tokens, literalToken(uint32(d.window[i])))
 				if len(d.tokens) == maxFlateBlockTokens {
 					if d.err = d.writeBlock(d.tokens, i+1, false); d.err != nil {
@@ -500,9 +477,7 @@ Loop:
 				}
 			}
 			d.index++
-			if d.fastSkipHashing == skipNever {
-				d.byteAvailable = true
-			}
+			d.byteAvailable = true
 		}
 	}
 }
