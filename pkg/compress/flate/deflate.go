@@ -377,7 +377,6 @@ func (d *compressor) murmurDeflate() {
 	d.maxInsertIndex = d.windowEnd - (minMatchLength - 1)
 	if d.index < d.maxInsertIndex {
 		d.hash0 = int(d.window[d.index])<<8 + int(d.window[d.index+1])
-		d.hash = getHash(d.hash0, 0) & hashMask
 	}
 
 Loop:
@@ -412,7 +411,29 @@ Loop:
 		if d.index < d.maxInsertIndex {
 			// Update the hash
 			d.hash0 = (d.hash0<<8 + int(d.window[d.index+2])) & 0xFFFFFF
-			d.hash = getHash(d.hash0, 0) & hashMask
+			// d.hash = getHash(d.hash0, 0) & hashMask
+			{
+				h1 := uint32(0) // seed
+				k1 := uint32(d.hash0)
+
+				k1 *= c1
+				k1 = (k1 << 15) | (k1 >> (32 - 15))
+				k1 *= c2
+
+				h1 ^= k1
+				h1 = (h1 << 13) | (h1 >> (32 - 13))
+				h1 = h1*5 + 0xe6546b64
+
+				// finalization
+				h1 ^= 4
+				h1 ^= h1 >> 16
+				h1 *= 0x85ebca6b
+				h1 ^= h1 >> 13
+				h1 *= 0xc2b2ae35
+				h1 ^= h1 >> 16
+
+				d.hash = int(h1) & hashMask
+			}
 			d.chainHead = d.hashHead[d.hash]
 			d.hashPrev[d.index&windowMask] = d.chainHead
 			d.hashHead[d.hash] = d.index + d.hashOffset
@@ -451,7 +472,29 @@ Loop:
 
 			for i := oldIndex + 1; i < toIndex; i++ {
 				d.hash0 = (d.hash0<<8 + int(d.window[i+2])) & 0xFFFFFF
-				d.hash = getHash(d.hash0, 0) & hashMask
+				// d.hash = getHash(d.hash0, 0) & hashMask
+				{
+					h1 := uint32(0)
+					k1 := uint32(d.hash0)
+
+					k1 *= c1
+					k1 = (k1 << 15) | (k1 >> (32 - 15))
+					k1 *= c2
+
+					h1 ^= k1
+					h1 = (h1 << 13) | (h1 >> (32 - 13))
+					h1 = h1*5 + 0xe6546b64
+
+					// finalization
+					h1 ^= 4
+					h1 ^= h1 >> 16
+					h1 *= 0x85ebca6b
+					h1 ^= h1 >> 13
+					h1 *= 0xc2b2ae35
+					h1 ^= h1 >> 16
+
+					d.hash = int(h1) & hashMask
+				}
 				// Get previous value with the same hash.
 				// Our chain should point to the previous value.
 				d.hashPrev[i&windowMask] = d.hashHead[d.hash]
