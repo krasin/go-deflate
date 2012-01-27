@@ -338,6 +338,140 @@ Loop:
 	}
 }
 
+func (d *compressor) murmurDeflate() {
+	if d.windowEnd-d.index < minMatchLength+maxMatchLength && !d.sync {
+		return
+	}
+
+	d.maxInsertIndex = d.windowEnd - (minMatchLength - 1)
+	if d.index < d.maxInsertIndex {
+		d.hash = int(d.window[d.index])<<hashShift + int(d.window[d.index+1])
+	}
+
+Loop:
+	for {
+		if d.index > d.windowEnd {
+			panic("index > windowEnd")
+		}
+		lookahead := d.windowEnd - d.index
+		if lookahead < minMatchLength+maxMatchLength {
+			if !d.sync {
+				break Loop
+			}
+			if d.index > d.windowEnd {
+				panic("index > windowEnd")
+			}
+			if lookahead == 0 {
+				// Flush current output block if any.
+				if d.byteAvailable {
+					// There is still one pending token that needs to be flushed
+					d.tokens = append(d.tokens, literalToken(uint32(d.window[d.index-1])))
+					d.byteAvailable = false
+				}
+				if len(d.tokens) > 0 {
+					if d.err = d.writeBlock(d.tokens, d.index, false); d.err != nil {
+						return
+					}
+					d.tokens = d.tokens[:0]
+				}
+				break Loop
+			}
+		}
+		if d.index < d.maxInsertIndex {
+			// Update the hash
+			d.hash = (d.hash<<hashShift + int(d.window[d.index+2])) & hashMask
+			d.chainHead = d.hashHead[d.hash]
+			d.hashPrev[d.index&windowMask] = d.chainHead
+			d.hashHead[d.hash] = d.index + d.hashOffset
+		}
+		prevLength := d.length
+		prevOffset := d.offset
+		d.length = minMatchLength - 1
+		d.offset = 0
+		minIndex := d.index - windowSize
+		if minIndex < 0 {
+			minIndex = 0
+		}
+
+		if d.chainHead-d.hashOffset >= minIndex &&
+			(d.fastSkipHashing != skipNever && lookahead > minMatchLength-1 ||
+				d.fastSkipHashing == skipNever && lookahead > prevLength && prevLength < d.lazy) {
+			if newLength, newOffset, ok := d.findMatch(d.index, d.chainHead-d.hashOffset, minMatchLength-1, lookahead); ok {
+				d.length = newLength
+				d.offset = newOffset
+			}
+		}
+		if d.fastSkipHashing != skipNever && d.length >= minMatchLength ||
+			d.fastSkipHashing == skipNever && prevLength >= minMatchLength && d.length <= prevLength {
+			// There was a match at the previous step, and the current match is
+			// not better. Output the previous match.
+			if d.fastSkipHashing != skipNever {
+				d.tokens = append(d.tokens, matchToken(uint32(d.length-minMatchLength), uint32(d.offset-minOffsetSize)))
+			} else {
+				d.tokens = append(d.tokens, matchToken(uint32(prevLength-minMatchLength), uint32(prevOffset-minOffsetSize)))
+			}
+			// Insert in the hash table all strings up to the end of the match.
+			// index and index-1 are already inserted. If there is not enough
+			// lookahead, the last two strings are not inserted into the hash
+			// table.
+			if d.length <= d.fastSkipHashing {
+				var newIndex int
+				if d.fastSkipHashing != skipNever {
+					newIndex = d.index + d.length
+				} else {
+					newIndex = d.index + prevLength - 1
+				}
+				for d.index++; d.index < newIndex; d.index++ {
+					if d.index < d.maxInsertIndex {
+						d.hash = (d.hash<<hashShift + int(d.window[d.index+2])) & hashMask
+						// Get previous value with the same hash.
+						// Our chain should point to the previous value.
+						d.hashPrev[d.index&windowMask] = d.hashHead[d.hash]
+						// Set the head of the hash chain to us.
+						d.hashHead[d.hash] = d.index + d.hashOffset
+					}
+				}
+				if d.fastSkipHashing == skipNever {
+					d.byteAvailable = false
+					d.length = minMatchLength - 1
+				}
+			} else {
+				// For matches this long, we don't bother inserting each individual
+				// item into the table.
+				d.index += d.length
+				if d.index < d.maxInsertIndex {
+					d.hash = (int(d.window[d.index])<<hashShift + int(d.window[d.index+1]))
+				}
+			}
+			if len(d.tokens) == maxFlateBlockTokens {
+				// The block includes the current character
+				if d.err = d.writeBlock(d.tokens, d.index, false); d.err != nil {
+					return
+				}
+				d.tokens = d.tokens[:0]
+			}
+		} else {
+			if d.fastSkipHashing != skipNever || d.byteAvailable {
+				i := d.index - 1
+				if d.fastSkipHashing != skipNever {
+					i = d.index
+				}
+				d.tokens = append(d.tokens, literalToken(uint32(d.window[i])))
+				if len(d.tokens) == maxFlateBlockTokens {
+					if d.err = d.writeBlock(d.tokens, i+1, false); d.err != nil {
+						return
+					}
+					d.tokens = d.tokens[:0]
+				}
+			}
+			d.index++
+			if d.fastSkipHashing == skipNever {
+				d.byteAvailable = true
+			}
+		}
+	}
+}
+
 func (d *compressor) fillStore(b []byte) int {
 	n := copy(d.window[d.windowEnd:], b)
 	d.windowEnd += n
@@ -384,11 +518,16 @@ func (d *compressor) init(w io.Writer, level int) (err error) {
 	case level == DefaultCompression:
 		level = 6
 		fallthrough
-	case 1 <= level && level <= 9:
+	case 1 <= level && level <= 8:
 		d.compressionLevel = levels[level]
 		d.initDeflate()
 		d.fill = (*compressor).fillDeflate
 		d.step = (*compressor).deflate
+	case level == 9:
+		d.compressionLevel = levels[level]
+		d.initDeflate()
+		d.fill = (*compressor).fillDeflate
+		d.step = (*compressor).murmurDeflate
 	default:
 		return WrongValueError{"level", 0, 9, int32(level)}
 	}
