@@ -86,8 +86,10 @@ type compressor struct {
 	tokens []token
 
 	// deflate state
-	length         int
-	offset         int
+	length int
+	offset int
+	// hash0 is used in murmurDeflate to keep last 3 bytes
+	hash0          int
 	hash           int
 	maxInsertIndex int
 	err            error
@@ -200,6 +202,7 @@ func (d *compressor) initDeflate() {
 	d.offset = 0
 	d.byteAvailable = false
 	d.index = 0
+	d.hash0 = 0
 	d.hash = 0
 	d.chainHead = -1
 }
@@ -338,6 +341,34 @@ Loop:
 	}
 }
 
+const (
+	c1 = 0xcc9e2d51
+	c2 = 0x1b873593
+)
+
+func getHash(x int, seed uint32) int {
+	h1 := seed
+	k1 := uint32(x)
+
+	k1 *= c1
+	k1 = (k1 << 15) | (k1 >> (32 - 15))
+	k1 *= c2
+
+	h1 ^= k1
+	h1 = (h1 << 13) | (h1 >> (32 - 13))
+	h1 = h1*5 + 0xe6546b64
+
+	// finalization
+	h1 ^= 4
+	h1 ^= h1 >> 16
+	h1 *= 0x85ebca6b
+	h1 ^= h1 >> 13
+	h1 *= 0xc2b2ae35
+	h1 ^= h1 >> 16
+
+	return int(h1)
+}
+
 func (d *compressor) murmurDeflate() {
 	if d.windowEnd-d.index < minMatchLength+maxMatchLength && !d.sync {
 		return
@@ -345,7 +376,8 @@ func (d *compressor) murmurDeflate() {
 
 	d.maxInsertIndex = d.windowEnd - (minMatchLength - 1)
 	if d.index < d.maxInsertIndex {
-		d.hash = int(d.window[d.index])<<hashShift + int(d.window[d.index+1])
+		d.hash0 = int(d.window[d.index])<<8 + int(d.window[d.index+1])
+		d.hash = getHash(d.hash0, 0) & hashMask
 	}
 
 Loop:
@@ -379,7 +411,8 @@ Loop:
 		}
 		if d.index < d.maxInsertIndex {
 			// Update the hash
-			d.hash = (d.hash<<hashShift + int(d.window[d.index+2])) & hashMask
+			d.hash0 = (d.hash0<<8 + int(d.window[d.index+2])) & 0xFFFFFF
+			d.hash = getHash(d.hash0, 0) & hashMask
 			d.chainHead = d.hashHead[d.hash]
 			d.hashPrev[d.index&windowMask] = d.chainHead
 			d.hashHead[d.hash] = d.index + d.hashOffset
@@ -423,7 +456,8 @@ Loop:
 				}
 				for d.index++; d.index < newIndex; d.index++ {
 					if d.index < d.maxInsertIndex {
-						d.hash = (d.hash<<hashShift + int(d.window[d.index+2])) & hashMask
+						d.hash0 = (d.hash0<<8 + int(d.window[d.index+2])) & 0xFFFFFF
+						d.hash = getHash(d.hash0, 0) & hashMask
 						// Get previous value with the same hash.
 						// Our chain should point to the previous value.
 						d.hashPrev[d.index&windowMask] = d.hashHead[d.hash]
@@ -440,7 +474,8 @@ Loop:
 				// item into the table.
 				d.index += d.length
 				if d.index < d.maxInsertIndex {
-					d.hash = (int(d.window[d.index])<<hashShift + int(d.window[d.index+1]))
+					d.hash0 = (int(d.window[d.index])<<8 + int(d.window[d.index+1]))
+					d.hash = getHash(d.hash0, 0) & hashMask
 				}
 			}
 			if len(d.tokens) == maxFlateBlockTokens {
