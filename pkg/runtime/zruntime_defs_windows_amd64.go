@@ -188,7 +188,7 @@ type alg struct {
 	copy	func(uint64, unsafe.Pointer, unsafe.Pointer)
 }
 
-var algarray	[18]alg
+var algarray	[22]alg
 type _defer struct {
 	siz	int
 	nofree	uint8

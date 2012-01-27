@@ -2,4 +2,4 @@
 
 package runtime
 const defaultGoroot = `/home/krasin/go`
-const theVersion = "weekly.2012-01-20 11436"
+const theVersion = "weekly.2012-01-27 11514"
